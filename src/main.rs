@@ -17,6 +17,7 @@ struct Args {
 struct StockQuote {
     symbol: String,
     price: f64,
+    change: f64,
 }
 
 fn parse_prices(response: &str, tickers: &[&str]) -> Result<Vec<StockQuote>, Box<dyn std::error::Error>> {
@@ -53,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut output = String::new();
     for quote in quotes {
-        output.push_str(&format!("{} ${} ", quote.symbol, quote.price));
+        output.push_str(&format!("{} ${} ({}) ", quote.symbol, quote.price, quote.change));
     }
     println!("{}", output.trim_end());
 
@@ -93,16 +94,18 @@ mod tests {
     // ]
     #[test]
     fn test_parse_prices() {
-        let response = r#"[{"symbol":"GOOG","price":2830.42},{"symbol":"AAPL","price":142.42}]"#;
+        let response = r#"[{"symbol":"GOOG","price":2830.42,"change":10.5},{"symbol":"AAPL","price":142.42,"change":-1.2}]"#;
         let tickers = ["AAPL", "GOOG"];
         let quotes = parse_prices(response, &tickers).unwrap();
         assert_eq!(quotes.len(), 2);
 
         let aapl_quote = quotes.iter().find(|q| q.symbol == "AAPL").unwrap();
         assert_eq!(aapl_quote.price, 142.42);
+        assert_eq!(aapl_quote.change, -1.2);
 
         let goog_quote = quotes.iter().find(|q| q.symbol == "GOOG").unwrap();
         assert_eq!(goog_quote.price, 2830.42);
+        assert_eq!(goog_quote.change, 10.5);
     }
 
     #[test]
