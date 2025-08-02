@@ -1,9 +1,8 @@
 use clap::Parser;
 use serde::Deserialize;
 use serde_json;
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::env;
-
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -14,36 +13,29 @@ struct Args {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-struct StockQuote {
-    symbol: String,
+struct StockQuote<'a> {
+    symbol: &'a str,
     price: f64,
     change: f64,
 }
 
-fn parse_prices(response: &str, tickers: &[&str]) -> Result<Vec<StockQuote>, Box<dyn std::error::Error>> {
-    let quotes: Vec<StockQuote> = serde_json::from_str(response)?;
-    let quote_map: HashMap<String, StockQuote> = quotes
+fn parse_prices<'a>(
+    response: &'a str,
+    tickers: &HashSet<&'a str>,
+) -> Result<Vec<StockQuote<'a>>, Box<dyn std::error::Error>> {
+    let quotes: Vec<StockQuote<'a>> = serde_json::from_str(response)?;
+    Ok(quotes
         .into_iter()
-        .map(|q| (q.symbol.clone(), q))
-        .collect();
-
-    let mut found_quotes = Vec::new();
-    for ticker in tickers {
-        let quote = quote_map
-            .get(*ticker)
-            .ok_or_else(|| format!("Ticker {} not found in response", ticker))?;
-        found_quotes.push(quote.clone());
-    }
-    Ok(found_quotes)
+        .filter(|quote| tickers.contains(quote.symbol))
+        .collect())
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
-    let tickers: Vec<&str> = args.tickers.split(',').collect();
+    let tickers: HashSet<&str> = args.tickers.split(',').collect();
 
-    let api_key = env::var("PMP_KEY")
-        .map_err(|_| "PMP_KEY environment variable not set")?;
+    let api_key = env::var("PMP_KEY").map_err(|_| "PMP_KEY environment variable not set")?;
     let url = format!(
         "https://financialmodelingprep.com/api/v3/quote/{}?apikey={}",
         args.tickers, api_key
@@ -54,7 +46,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut output = String::new();
     for quote in quotes {
-        output.push_str(&format!("{} ${} ({}) ", quote.symbol, quote.price, quote.change));
+        output.push_str(&format!(
+            "{} ${} ({}) ",
+            quote.symbol, quote.price, quote.change
+        ));
     }
     println!("{}", output.trim_end());
 
@@ -95,7 +90,7 @@ mod tests {
     #[test]
     fn test_parse_prices() {
         let response = r#"[{"symbol":"GOOG","price":2830.42,"change":10.5},{"symbol":"AAPL","price":142.42,"change":-1.2}]"#;
-        let tickers = ["AAPL", "GOOG"];
+        let tickers = HashSet::from(["AAPL", "GOOG"]);
         let quotes = parse_prices(response, &tickers).unwrap();
         assert_eq!(quotes.len(), 2);
 
@@ -111,7 +106,7 @@ mod tests {
     #[test]
     fn test_parse_prices_not_found() {
         let response = r#"[{"symbol":"GOOG","price":2830.42}]"#;
-        let tickers = ["AAPL"];
+        let tickers = HashSet::from(["AAPL"]);
         assert!(parse_prices(response, &tickers).is_err());
     }
 }
