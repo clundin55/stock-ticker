@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let api_key = env::var("PMP_KEY").map_err(|_| "PMP_KEY environment variable not set")?;
     let url = format!(
-        "https://financialmodelingprep.com/api/v3/quote/{}?apikey={}",
+        "https://financialmodelingprep.com/stable/quote/?symbol={}&apikey={}",
         args.tickers, api_key
     );
 
