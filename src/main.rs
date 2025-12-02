@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Result, Context};
 use clap::Parser;
 use serde::Deserialize;
 use serde_json;
@@ -22,8 +23,8 @@ struct StockQuote<'a> {
 fn parse_prices<'a>(
     response: &'a str,
     tickers: &HashSet<&'a str>,
-) -> Result<Vec<StockQuote<'a>>, Box<dyn std::error::Error>> {
-    let quotes: Vec<StockQuote<'a>> = serde_json::from_str(response)?;
+) -> Result<Vec<StockQuote<'a>>> {
+    let quotes: Vec<StockQuote<'a>> = serde_json::from_str(response).context(response.to_owned())?;
     Ok(quotes
         .into_iter()
         .filter(|quote| tickers.contains(quote.symbol))
@@ -31,11 +32,11 @@ fn parse_prices<'a>(
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     let args = Args::parse();
     let tickers: HashSet<&str> = args.tickers.split(',').collect();
 
-    let api_key = env::var("PMP_KEY").map_err(|_| "PMP_KEY environment variable not set")?;
+    let api_key = env::var("PMP_KEY").map_err(|_| anyhow!("PMP_KEY environment variable not set"))?;
     let url = format!(
         "https://financialmodelingprep.com/stable/quote/?symbol={}&apikey={}",
         args.tickers, api_key
